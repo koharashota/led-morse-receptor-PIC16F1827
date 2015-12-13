@@ -35,13 +35,14 @@
 #define detector RB5	// 赤外線感知
 #define ledout RA0	// テスト用led駆動
 #define ledin RA1	// テスト用led駆動
+#define sw RA3	// スイッチ
 #define _XTAL_FREQ 8000000
 #define data_num 7 // 受信データ量 7bit
 #define data_period 598 // 受信データの読み取り間隔 598μs default
 #define morse_data_num 5 // モールス信号の受信データ量 5bit
-#define morse_word_meaning_num 12 // モールス信号に対応する文字の登録文字限度数 8
-#define morse_word_meaning_registration_num 10 // モールス信号に対応する文字の登録数
-#define morse_char_meaning_registration_num 10 // モールス信号に対応する文字の登録数 26
+#define morse_word_meaning_num 17 // モールス信号に対応する文章の登録文字限度数 14
+#define morse_word_meaning_registration_num 10 // モールス信号に対応する文章の登録数
+//#define morse_char_meaning_registration_num 10 // モールス信号に対応する文字の登録数 26
 #define morse_display_chars_num 14 // 液晶に表示する文字数
 
 static void pic_init(); // picの初期化情報を設定する
@@ -102,9 +103,12 @@ void main(void)
     // 信号を検知したかどうかで場合分け
     if ( detect_signal_result == 1 ){
 
+      ledin = 1;
+      ledout = 1;
+
       morse_data_init();
       morse_display_chars_init();
-      
+
       int detect_state_result = 1;
       int detect_state_result_count = 0;
 
@@ -126,24 +130,29 @@ void main(void)
       display_morse_input();
 
     } else {
-      ledin = 0;
-      ledout = 0;
+      if (sw == 1) {
+        morse_display_chars_init();
+        LCD_Clear();
+        LCD_Puts("restart") ;
+        ledin = 0;
+        ledout = 0;
+      }
     }
   }
 }
 
 static void pic_init() {
   TRISB = 0xF0;
-  TRISA = 0x00;
+  TRISA = 0x08; // RA3のみをインプット
+  ANSELA= 0x00;	// set all RA to digital pin
   ANSELB= 0x00;	// set all RB to digital pin
   PORTB = 0x00;
   PORTA = 0x00;
-  //OSCCON = 0x7A;	//内部クロック16 MHz 0111 1010b
   OSCCON = 0x70; //内部クロック 8 MHz 0111 1010b
   OPTION_REG = 0b00000000;
-  ANSELB     = 0b00000000;
   TRISB      = 0b00110010;
   WPUB       = 0b00010010;
+  WPUA       = 0b00001000; // RA2にプルアップ抵抗
 }
 
 void signal_data_init() {
@@ -167,10 +176,12 @@ void display_morse_input_num(){
   LCD_Puts("morse code is");
   LCD_SetCursor(0, 1);
   for (int i = 0; i < morse_data_num; i++) {
-    if (morse_data[i]==0) {
-      LCD_Puts("0");
-    }else{
+    if (morse_data[i]==1) {
       LCD_Puts("1");
+    }else if(morse_data[i]==2){
+      LCD_Puts("2");
+    }else{
+      LCD_Puts("0");
     }
   }
   __delay_ms(2000);
@@ -178,8 +189,8 @@ void display_morse_input_num(){
 
 void display_morse_input(){
   LCD_Clear();
-  LCD_Puts("this means");
-  LCD_SetCursor(0, 1);
+  //LCD_Puts("this means");
+  //LCD_SetCursor(0, 1);
   LCD_Puts(morse_display_chars);
   __delay_ms(3000);
 }
@@ -299,8 +310,9 @@ void morse_correspond(){
     }
   }
   **/
+
   for (int i = 0; i < morse_word_meaning_registration_num; i++) {
-    // モールス信号から文字を推定
+    // モールス信号から文章を推定
     if ( memcmp(morse_data, morse_correspondence_words[i].morse_data, sizeof(int) * morse_data_num) == 0 ) {
       for (int j = 0; j < morse_word_meaning_num; j++) {
         // 表示用の配列に文字を代入
@@ -312,11 +324,16 @@ void morse_correspond(){
 
 
 morse_correspondence_word_t morse_correspondence_words[morse_word_meaning_registration_num] = {
-  {{1, 1, 1, 1, 1}, "help"},
-  {{1, 1, 1, 1, 2}, "slack"},
-  {{1, 1, 1, 2, 1}, "lunch"},
-  {{1, 1, 1, 2, 2}, "dinner"},
-  {{1, 1, 1, 2, 2}, "starbucks"}
+  {{1, 1, 1, 1, 1}, "plz help"},
+  {{1, 1, 1, 1, 2}, "look slack"},
+  {{1, 1, 1, 2, 1}, "go lunch"},
+  {{1, 1, 1, 2, 2}, "go dinner"},
+  {{1, 1, 2, 1, 1}, "go negishi"},
+  {{1, 1, 2, 1, 2}, "hurry up"},
+  {{1, 1, 2, 2, 1}, "lgtm"},
+  {{1, 1, 2, 1, 2}, "this is demo"},
+  {{1, 1, 2, 2, 1}, "thx for watching"},
+  {{1, 1, 2, 2, 2}, "love you all"}
 };
 
 /**
